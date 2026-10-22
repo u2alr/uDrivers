@@ -5,6 +5,11 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 0.1.0'
+        required: true
 
 permissions:
   contents: write
@@ -25,7 +30,9 @@ jobs:
       - name: Read version from tag
         shell: pwsh
         run: |
-          $v = "${{ github.ref_name }}".TrimStart('v')
+          $v = "${{ github.event.inputs.version }}"
+          if (-not $v) { $v = "${{ github.ref_name }}" }
+          $v = $v.TrimStart('v')
           "VERSION=$v" >> $env:GITHUB_ENV
 
       - name: Publish app
@@ -58,5 +65,5 @@ jobs:
           --repoUrl https://github.com/${{ github.repository }}
           --publish
           --releaseName "uDrivers ${{ env.VERSION }}"
-          --tag ${{ github.ref_name }}
+          --tag v${{ env.VERSION }}
           --token ${{ secrets.GITHUB_TOKEN }}
