@@ -293,11 +293,11 @@
                         <Grid Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                               BorderThickness="1" CornerRadius="8" Padding="16">
                             <StackPanel>
-                                <TextBlock Text="NVIDIA graphics" />
-                                <TextBlock Text="Latest Game Ready driver straight from NVIDIA." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Graphics (NVIDIA, AMD, Intel)" />
+                                <TextBlock Text="Latest official graphics driver straight from your GPU maker." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                             <ToggleSwitch HorizontalAlignment="Right" MinWidth="0" OnContent="" OffContent=""
-                                          IsOn="{x:Bind ViewModel.SourceNvidia, Mode=TwoWay}" />
+                                          IsOn="{x:Bind ViewModel.SourceGraphics, Mode=TwoWay}" />
                         </Grid>
 
                         <TextBlock Text="Safety" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />

@@ -4,7 +4,7 @@ namespace uDrivers.Models;
 
 public enum UpdateStatus { Available, Downloading, Installing, Installed, Failed }
 
-public enum UpdateSource { WindowsUpdate, Dell, HP, Lenovo, Nvidia }
+public enum UpdateSource { WindowsUpdate, Dell, HP, Lenovo, Nvidia, Amd, Intel }
 
 public enum UpdateKind { Driver, Firmware, Bios }
 
@@ -49,6 +49,7 @@ public sealed partial class DriverUpdate : ObservableObject
     {
         UpdateSource.WindowsUpdate => "Windows Update",
         UpdateSource.Nvidia => "NVIDIA",
+        UpdateSource.Amd => "AMD",
         _ => Source.ToString(),
     };
 

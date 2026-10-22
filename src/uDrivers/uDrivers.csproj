@@ -35,7 +35,7 @@
     <Version>0.1.0</Version>
     <Product>uDrivers</Product>
     <Company>uDrivers</Company>
-    <Description>Keeps Windows drivers current using official drivers from Windows Update, Dell, HP, Lenovo and NVIDIA.</Description>
+    <Description>Keeps Windows drivers current using official drivers from Windows Update, Dell, HP, Lenovo, NVIDIA, AMD and Intel.</Description>
   </PropertyGroup>
 
   <ItemGroup>

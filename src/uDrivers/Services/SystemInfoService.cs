@@ -11,6 +11,7 @@ public static class SystemInfoService
         var cs = First("SELECT Manufacturer, Model, SystemSKUNumber FROM Win32_ComputerSystem");
         var board = First("SELECT Product FROM Win32_BaseBoard");
         var bios = First("SELECT SMBIOSBIOSVersion FROM Win32_BIOS");
+        var cpu = First("SELECT Name FROM Win32_Processor");
 
         string displayVersion = "";
         try
@@ -32,6 +33,7 @@ public static class SystemInfoService
             SystemSku = Get(cs, "SystemSKUNumber"),
             BaseBoardProduct = Get(board, "Product"),
             BiosVersion = Get(bios, "SMBIOSBIOSVersion"),
+            CpuName = Get(cpu, "Name"),
             IsWindows11 = Environment.OSVersion.Version.Build >= 22000,
             DisplayVersion = displayVersion,
             Gpus = gpus,

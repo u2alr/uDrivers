@@ -30,7 +30,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _busyText = "";
     [ObservableProperty] private bool _hasChecked;
     [ObservableProperty] private string _summary = "Check for official driver updates.";
-    [ObservableProperty] private string _systemSummary = "Windows Update, your PC maker and NVIDIA";
+    [ObservableProperty] private string _systemSummary = "Windows Update, your PC maker and your graphics vendor";
     [ObservableProperty] private DateTime? _lastChecked;
 
     [ObservableProperty] private bool _messageOpen;
@@ -54,6 +54,8 @@ public sealed partial class MainViewModel : ObservableObject
             new HpSource(),
             new LenovoSource(),
             new NvidiaSource(),
+            new AmdSource(),
+            new IntelGraphicsSource(),
         ];
         _sources = all.ToDictionary(s => s.Kind);
 
@@ -102,16 +104,16 @@ public sealed partial class MainViewModel : ObservableObject
         set => Set(_settings.SourceManufacturer, value, (s, v) => s.SourceManufacturer = v);
     }
 
-    public bool SourceNvidia
+    public bool SourceGraphics
     {
-        get => _settings.SourceNvidia;
-        set => Set(_settings.SourceNvidia, value, (s, v) => s.SourceNvidia = v);
+        get => _settings.SourceGraphics;
+        set => Set(_settings.SourceGraphics, value, (s, v) => s.SourceGraphics = v);
     }
 
     private bool IsEnabled(UpdateSource s) => s switch
     {
         UpdateSource.WindowsUpdate => SourceWindowsUpdate,
-        UpdateSource.Nvidia => SourceNvidia,
+        UpdateSource.Nvidia or UpdateSource.Amd or UpdateSource.Intel => SourceGraphics,
         _ => SourceManufacturer,
     };
 
@@ -119,6 +121,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         UpdateSource.WindowsUpdate => "Windows Update",
         UpdateSource.Nvidia => "NVIDIA",
+        UpdateSource.Amd => "AMD",
         _ => s.ToString(),
     };
 

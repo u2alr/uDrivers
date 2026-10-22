@@ -10,6 +10,7 @@ public sealed class SystemProfile
     public string SystemSku { get; init; } = "";
     public string BaseBoardProduct { get; init; } = "";
     public string BiosVersion { get; init; } = "";
+    public string CpuName { get; init; } = "";
     public bool IsWindows11 { get; init; }
     public string DisplayVersion { get; init; } = "";   // e.g. 24H2
     public IReadOnlyList<GpuInfo> Gpus { get; init; } = [];

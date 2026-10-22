@@ -1,6 +1,6 @@
 # uDrivers
 
-A fast, modern Windows driver updater that installs **official, signed drivers only** — straight from Windows Update, your PC maker, and NVIDIA. No third-party driver sites, no bundleware.
+A fast, modern Windows driver updater that installs **official, signed drivers only** — straight from Windows Update, your PC maker, and your graphics vendor. No third-party driver sites, no bundleware.
 
 ## Features
 
@@ -12,6 +12,8 @@ A fast, modern Windows driver updater that installs **official, signed drivers o
   | HP | HP Image Assistant reference files for your platform |
   | Lenovo | Lenovo System Update catalog for your machine type |
   | NVIDIA | Latest WHQL Game Ready driver from NVIDIA |
+  | AMD | Latest AMD Software: Adrenalin Edition (RDNA GPUs and Ryzen with Radeon graphics) |
+  | Intel | Latest Intel graphics driver for your GPU family (6th gen Core through Arc / Core Ultra) |
 - **Only offers what's newer** — every vendor package is matched to your actual hardware IDs and compared with the installed driver version.
 - **Verifies before running** — published hashes are checked, and installers must carry a valid digital signature from the vendor.
 - **No duplicates** — if two sources offer a driver for the same device, the newest one is selected.
@@ -54,7 +56,7 @@ The **Release** workflow builds the app, packs it with [Velopack](https://velopa
 | --- | --- |
 | Installed driver inventory (WMI `Win32_PnPSignedDriver`) | `Services/DriverScanner.cs` |
 | Windows Update (WUA COM API) | `Services/Sources/WindowsUpdateSource.cs` |
-| Dell / HP / Lenovo / NVIDIA catalogs | `Services/Sources/*Source.cs` |
+| Dell / HP / Lenovo / NVIDIA / AMD / Intel | `Services/Sources/*Source.cs` |
 | Hardware ID matching and version comparison | `Services/Matching.cs` |
 | Hash + Authenticode signature checks | `Services/Web.cs`, `Services/SignatureVerifier.cs` |
 | System Restore point | `Services/RestorePointService.cs` |
@@ -65,7 +67,7 @@ Logs are written to `%LocalAppData%\uDrivers\logs`.
 
 ## Roadmap
 
-- AMD and Intel graphics drivers direct from the vendor
+- More PC makers (ASUS, Acer, MSI)
 - Installing BIOS/firmware with BitLocker handled automatically
 - Driver backup and one-click rollback per device
 - Scheduled background checks with notifications

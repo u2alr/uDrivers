@@ -63,12 +63,14 @@ public static class Web
         }
     }
 
-    public static async Task DownloadAsync(string url, string path, CancellationToken ct, Action<int>? percent = null)
+    public static async Task DownloadAsync(string url, string path, CancellationToken ct, Action<int>? percent = null, string? referer = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temp = path + ".part";
 
-        using var resp = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (referer is not null) request.Headers.Referrer = new Uri(referer);
+        using var resp = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         resp.EnsureSuccessStatusCode();
         var total = resp.Content.Headers.ContentLength ?? 0;
 
