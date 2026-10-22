@@ -1,0 +1,62 @@
+name: Release
+
+# Push a tag like v0.1.0 to build the installer and publish it as a GitHub Release.
+# Installed copies of uDrivers check these releases and update themselves.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  VPK_VERSION: 0.0.1298   # keep in step with the Velopack package in uDrivers.csproj
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Read version from tag
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          "VERSION=$v" >> $env:GITHUB_ENV
+
+      - name: Publish app
+        run: >
+          dotnet publish src/uDrivers/uDrivers.csproj
+          -c Release -r win-x64 -p:Platform=x64 --self-contained
+          -p:Version=${{ env.VERSION }}
+          -o publish
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk --version ${{ env.VPK_VERSION }}
+
+      - name: Fetch previous release (enables small delta updates)
+        continue-on-error: true
+        run: vpk download github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build installer and update packages
+        run: >
+          vpk pack
+          --packId uDrivers
+          --packVersion ${{ env.VERSION }}
+          --packDir publish
+          --mainExe uDrivers.exe
+          --packTitle uDrivers
+          --icon src/uDrivers/Assets/AppIcon.ico
+
+      - name: Publish GitHub Release
+        run: >
+          vpk upload github
+          --repoUrl https://github.com/${{ github.repository }}
+          --publish
+          --releaseName "uDrivers ${{ env.VERSION }}"
+          --tag ${{ github.ref_name }}
+          --token ${{ secrets.GITHUB_TOKEN }}
