@@ -25,6 +25,12 @@ public sealed partial class MainWindow : Window
         _ = ViewModel.InitializeAsync();
     }
 
+    private void Details_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is Models.DriverUpdate update)
+            MainViewModel.OpenUrl(update.InfoUrl);
+    }
+
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         var tag = args.IsSettingsSelected

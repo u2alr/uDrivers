@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using uDrivers.Models;
 using uDrivers.Services;
+using uDrivers.Services.Sources;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Controls;
 
@@ -11,9 +12,9 @@ namespace uDrivers.ViewModels;
 public sealed partial class MainViewModel : ObservableObject
 {
     private readonly DispatcherQueue _ui = DispatcherQueue.GetForCurrentThread();
-    private readonly WindowsUpdateDriverService _windowsUpdate = new();
     private readonly AppUpdateService _appUpdates = new();
     private readonly AppSettings _settings = SettingsService.Load();
+    private readonly Dictionary<UpdateSource, IDriverSource> _sources;
     private IReadOnlyList<InstalledDriver> _allDrivers = [];
     private CancellationTokenSource? _cts;
 
@@ -28,7 +29,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _busyText = "";
     [ObservableProperty] private bool _hasChecked;
-    [ObservableProperty] private string _summary = "Check Windows Update for official driver updates.";
+    [ObservableProperty] private string _summary = "Check for official driver updates.";
+    [ObservableProperty] private string _systemSummary = "Windows Update, your PC maker and NVIDIA";
     [ObservableProperty] private DateTime? _lastChecked;
 
     [ObservableProperty] private bool _messageOpen;
@@ -45,6 +47,16 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        IDriverSource[] all =
+        [
+            new WindowsUpdateSource(() => UseManagedServer),
+            new DellSource(),
+            new HpSource(),
+            new LenovoSource(),
+            new NvidiaSource(),
+        ];
+        _sources = all.ToDictionary(s => s.Kind);
+
         if (!IsElevated)
             ShowMessage("Read-only mode",
                 "uDrivers isn't running as administrator, so it can check for updates but not install them. Restart it and accept the prompt to install drivers.",
@@ -53,23 +65,62 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- Settings (two-way bound, saved on change) ----
 
+    private bool Set(bool current, bool value, Action<AppSettings, bool> apply, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+    {
+        if (!SetProperty(current, value, _settings, apply, name)) return false;
+        SettingsService.Save(_settings);
+        return true;
+    }
+
     public bool CreateRestorePoint
     {
         get => _settings.CreateRestorePoint;
-        set { if (SetProperty(_settings.CreateRestorePoint, value, _settings, (s, v) => s.CreateRestorePoint = v)) SettingsService.Save(_settings); }
+        set => Set(_settings.CreateRestorePoint, value, (s, v) => s.CreateRestorePoint = v);
     }
 
     public bool CheckAppUpdatesOnStart
     {
         get => _settings.CheckAppUpdatesOnStart;
-        set { if (SetProperty(_settings.CheckAppUpdatesOnStart, value, _settings, (s, v) => s.CheckAppUpdatesOnStart = v)) SettingsService.Save(_settings); }
+        set => Set(_settings.CheckAppUpdatesOnStart, value, (s, v) => s.CheckAppUpdatesOnStart = v);
     }
 
     public bool UseManagedServer
     {
         get => _settings.UseManagedServer;
-        set { if (SetProperty(_settings.UseManagedServer, value, _settings, (s, v) => s.UseManagedServer = v)) SettingsService.Save(_settings); }
+        set => Set(_settings.UseManagedServer, value, (s, v) => s.UseManagedServer = v);
     }
+
+    public bool SourceWindowsUpdate
+    {
+        get => _settings.SourceWindowsUpdate;
+        set => Set(_settings.SourceWindowsUpdate, value, (s, v) => s.SourceWindowsUpdate = v);
+    }
+
+    public bool SourceManufacturer
+    {
+        get => _settings.SourceManufacturer;
+        set => Set(_settings.SourceManufacturer, value, (s, v) => s.SourceManufacturer = v);
+    }
+
+    public bool SourceNvidia
+    {
+        get => _settings.SourceNvidia;
+        set => Set(_settings.SourceNvidia, value, (s, v) => s.SourceNvidia = v);
+    }
+
+    private bool IsEnabled(UpdateSource s) => s switch
+    {
+        UpdateSource.WindowsUpdate => SourceWindowsUpdate,
+        UpdateSource.Nvidia => SourceNvidia,
+        _ => SourceManufacturer,
+    };
+
+    private static string SourceName(UpdateSource s) => s switch
+    {
+        UpdateSource.WindowsUpdate => "Windows Update",
+        UpdateSource.Nvidia => "NVIDIA",
+        _ => s.ToString(),
+    };
 
     // ---- Startup ----
 
@@ -126,18 +177,44 @@ public sealed partial class MainViewModel : ObservableObject
         IsBusy = true;
         MessageOpen = false;
         _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
         try
         {
-            BusyText = "Reading installed drivers…";
-            _allDrivers = await DriverScanner.ScanAsync(_cts.Token);
+            BusyText = "Reading your hardware…";
+            _allDrivers = await DriverScanner.ScanAsync(ct);
             ApplyDriverFilter();
+            var profile = await SystemInfoService.LoadAsync(_allDrivers);
+            SystemSummary = profile.Summary;
 
-            BusyText = "Asking Windows Update for driver updates… this can take a minute.";
-            var found = await _windowsUpdate.SearchAsync(_allDrivers, UseManagedServer, _cts.Token);
+            var active = _sources.Values.Where(s => IsEnabled(s.Kind) && s.AppliesTo(profile)).ToList();
+            BusyText = $"Checking {string.Join(", ", active.Select(s => SourceName(s.Kind)))}… this can take a minute.";
+
+            var errors = new List<string>();
+            var tasks = active.Select(async s =>
+            {
+                try { return await s.FindAsync(profile, ct); }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    Log.Error($"{SourceName(s.Kind)} check failed", ex);
+                    lock (errors) errors.Add($"{SourceName(s.Kind)}: {ex.Message}");
+                    return (IReadOnlyList<DriverUpdate>)Array.Empty<DriverUpdate>();
+                }
+            }).ToList();
+
+            var found = (await Task.WhenAll(tasks)).SelectMany(x => x).ToList();
+            ResolveOverlaps(found);
+
+            var ordered = found
+                .OrderByDescending(u => u.CanInstall)
+                .ThenBy(u => u.Kind)
+                .ThenBy(u => u.Source)
+                .ThenBy(u => u.DeviceLabel, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             foreach (var old in Updates) old.PropertyChanged -= OnUpdateChanged;
             Updates.Clear();
-            foreach (var u in found)
+            foreach (var u in ordered)
             {
                 u.PropertyChanged += OnUpdateChanged;
                 Updates.Add(u);
@@ -145,12 +222,17 @@ public sealed partial class MainViewModel : ObservableObject
 
             HasChecked = true;
             LastChecked = DateTime.Now;
-            Summary = found.Count switch
+            Summary = ordered.Count switch
             {
                 0 => "Your drivers are up to date.",
-                1 => "1 driver update is available.",
-                _ => $"{found.Count} driver updates are available."
+                1 => "1 update is available.",
+                _ => $"{ordered.Count} updates are available."
             };
+            if (ordered.Count > 0)
+                Summary += "  " + string.Join(" · ", ordered.GroupBy(u => u.Source).Select(g => $"{SourceName(g.Key)} {g.Count()}"));
+
+            if (errors.Count > 0)
+                ShowMessage("Some sources couldn't be checked", string.Join("\n", errors), InfoBarSeverity.Warning);
         }
         catch (OperationCanceledException)
         {
@@ -159,7 +241,7 @@ public sealed partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             Log.Error("Update check failed", ex);
-            ShowMessage("Couldn't reach Windows Update", ex.Message, InfoBarSeverity.Error);
+            ShowMessage("Couldn't check for updates", ex.Message, InfoBarSeverity.Error);
         }
         finally
         {
@@ -168,17 +250,44 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanInstall => !IsBusy && IsElevated && Updates.Any(u => u.IsSelected && u.Status != UpdateStatus.Installed);
+    /// <summary>When two sources offer a driver for the same device, keep only the newest one selected.</summary>
+    private static void ResolveOverlaps(List<DriverUpdate> found)
+    {
+        foreach (var group in found.Where(u => u.Kind == UpdateKind.Driver && u.CanInstall && u.DeviceInstanceId is not null)
+                                   .GroupBy(u => u.DeviceInstanceId!, StringComparer.OrdinalIgnoreCase)
+                                   .Where(g => g.Count() > 1))
+        {
+            var best = group
+                .OrderByDescending(u => u.NewDate ?? DateTime.MinValue)
+                .ThenBy(u => u.Source == UpdateSource.WindowsUpdate) // vendor wins ties
+                .First();
+            foreach (var other in group.Where(u => u != best))
+            {
+                other.IsSelected = false;
+                other.StatusText = $"{best.SourceText} has a newer driver for this device";
+            }
+        }
+    }
+
+    private bool CanInstall => !IsBusy && IsElevated &&
+        Updates.Any(u => u.IsSelected && u.CanInstall && u.Status != UpdateStatus.Installed);
 
     [RelayCommand(CanExecute = nameof(CanInstall))]
     private async Task InstallSelectedAsync()
     {
-        var selected = Updates.Where(u => u.IsSelected && u.Status != UpdateStatus.Installed).ToList();
+        // Windows Update first, then vendor packages (which are usually newer and should win).
+        var selected = Updates
+            .Where(u => u.IsSelected && u.CanInstall && u.Status != UpdateStatus.Installed)
+            .OrderBy(u => u.Source == UpdateSource.WindowsUpdate ? 0 : 1)
+            .ToList();
         if (selected.Count == 0) return;
 
         IsBusy = true;
         MessageOpen = false;
         _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
+        int ok = 0, failed = 0;
+        bool reboot = false;
         try
         {
             if (CreateRestorePoint)
@@ -189,21 +298,46 @@ public sealed partial class MainViewModel : ObservableObject
                     ShowMessage("No restore point was created", problem + " Installing anyway.", InfoBarSeverity.Warning);
             }
 
-            int done = 0;
-            var outcome = await _windowsUpdate.InstallAsync(selected, (update, status, text) =>
+            for (int i = 0; i < selected.Count && !ct.IsCancellationRequested; i++)
             {
-                _ui.TryEnqueue(() =>
-                {
-                    update.Status = status;
-                    update.StatusText = text;
-                    if (status is UpdateStatus.Installed or UpdateStatus.Failed) done++;
-                    BusyText = $"Installing {Math.Min(done + 1, selected.Count)} of {selected.Count}: {update.DeviceLabel}";
-                });
-            }, _cts.Token);
+                var update = selected[i];
+                var prefix = $"{i + 1} of {selected.Count}: {update.DeviceLabel}";
+                BusyText = prefix;
+                update.Status = UpdateStatus.Downloading;
 
-            var severity = outcome.Failed == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
-            var text = $"{outcome.Succeeded} installed" + (outcome.Failed > 0 ? $", {outcome.Failed} failed (see each item for details)." : ".");
-            if (outcome.RebootRequired) text += " Restart your PC to finish.";
+                void Report(string text) => _ui.TryEnqueue(() =>
+                {
+                    update.StatusText = text;
+                    if (text.StartsWith("Install", StringComparison.Ordinal)) update.Status = UpdateStatus.Installing;
+                    BusyText = $"{prefix} — {text}";
+                });
+
+                try
+                {
+                    var result = await _sources[update.Source].InstallAsync(update, Report, ct);
+                    update.Status = result.Success ? UpdateStatus.Installed : UpdateStatus.Failed;
+                    update.StatusText = result.Message;
+                    if (result.Success) { ok++; reboot |= result.RebootRequired; } else failed++;
+                    Log.Info($"{(result.Success ? "Installed" : "Failed")}: {update.Title} — {result.Message}");
+                }
+                catch (OperationCanceledException)
+                {
+                    update.Status = UpdateStatus.Available;
+                    update.StatusText = "Cancelled";
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    update.Status = UpdateStatus.Failed;
+                    update.StatusText = ex.Message;
+                    Log.Error($"Failed: {update.Title}", ex);
+                }
+            }
+
+            var severity = failed == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+            var text = $"{ok} installed" + (failed > 0 ? $", {failed} failed (see each item for details)." : ".");
+            if (reboot) text += " Restart your PC to finish.";
             ShowMessage("Driver updates finished", text, severity);
 
             await LoadDriversAsync();
@@ -231,13 +365,20 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void SetSelection(bool select)
     {
-        foreach (var u in Updates.Where(u => u.Status != UpdateStatus.Installed)) u.IsSelected = select;
+        foreach (var u in Updates.Where(u => u.CanInstall && u.Status != UpdateStatus.Installed)) u.IsSelected = select;
     }
 
     private void OnUpdateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(DriverUpdate.IsSelected) or nameof(DriverUpdate.Status))
             InstallSelectedCommand.NotifyCanExecuteChanged();
+    }
+
+    public static void OpenUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Error("Couldn't open link", ex); }
     }
 
     // ---- App self-update ----
@@ -275,7 +416,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void OpenLogs()
     {
         Directory.CreateDirectory(Log.Folder);
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Log.Folder) { UseShellExecute = true });
+        OpenUrl(Log.Folder);
     }
 
     private void ShowMessage(string title, string text, InfoBarSeverity severity)

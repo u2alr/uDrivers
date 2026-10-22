@@ -69,8 +69,9 @@
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                             <TextBlock Text="{x:Bind ViewModel.Summary, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
-                            <TextBlock Text="{x:Bind vm:Bind.LastChecked(ViewModel.LastChecked), Mode=OneWay}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap">
+                                <Run Text="{x:Bind ViewModel.SystemSummary, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{x:Bind vm:Bind.LastChecked(ViewModel.LastChecked), Mode=OneWay}" />
+                            </TextBlock>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -102,7 +103,7 @@
                                     Visibility="{x:Bind vm:Bind.VisibleIfEmpty(ViewModel.Updates.Count, ViewModel.HasChecked), Mode=OneWay}">
                             <FontIcon Glyph="&#xE73E;" FontSize="48" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
                             <TextBlock Text="Nothing to install" Style="{StaticResource BodyStrongTextBlockStyle}" HorizontalAlignment="Center" />
-                            <TextBlock Text="Windows Update has no newer drivers for this PC right now." HorizontalAlignment="Center"
+                            <TextBlock Text="No newer official drivers were found for this PC right now." HorizontalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
 
@@ -148,26 +149,38 @@
 
                                             <CheckBox MinWidth="0" VerticalAlignment="Center"
                                                       IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
-                                                      IsEnabled="{x:Bind vm:Bind.CanToggle(Status), Mode=OneWay}" />
+                                                      IsEnabled="{x:Bind vm:Bind.CanToggle(Status, CanInstall), Mode=OneWay}" />
                                             <FontIcon Grid.Column="1" FontSize="22"
-                                                      Glyph="{x:Bind vm:Bind.StatusGlyph(Status), Mode=OneWay}"
+                                                      Glyph="{x:Bind vm:Bind.StatusGlyph(Status, Kind), Mode=OneWay}"
                                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
 
-                                            <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
-                                                <TextBlock Text="{x:Bind DeviceLabel}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Grid.Column="2" Spacing="3" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{x:Bind DeviceLabel}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" MaxWidth="560" />
+                                                    <Border Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{x:Bind SourceText}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                                   Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                                    </Border>
+                                                    <Border Background="{ThemeResource SystemFillColorCautionBackgroundBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                                                            Visibility="{x:Bind vm:Bind.VisibleIfText(KindText)}">
+                                                        <TextBlock Text="{x:Bind KindText}" Style="{StaticResource CaptionTextBlockStyle}" />
+                                                    </Border>
+                                                </StackPanel>
                                                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis">
                                                     <Run Text="{x:Bind Manufacturer}" /><Run Text="  ·  " /><Run Text="{x:Bind DriverClass}" />
                                                 </TextBlock>
-                                                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}">
-                                                    <Run Text="Installed:" /> <Run Text="{x:Bind CurrentText}" /><Run Text="   →   New driver date:" /> <Run Text="{x:Bind NewDateText}" />
+                                                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap">
+                                                    <Run Text="Installed:" /> <Run Text="{x:Bind CurrentText}" /><Run Text="   →   New:" /> <Run Text="{x:Bind NewText}" />
                                                 </TextBlock>
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                                                 <TextBlock Text="{x:Bind SizeText}" HorizontalAlignment="Right"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <TextBlock Text="{x:Bind StatusText, Mode=OneWay}" HorizontalAlignment="Right"
-                                                           Style="{StaticResource CaptionTextBlockStyle}" />
+                                                <TextBlock Text="{x:Bind vm:Bind.StatusLine(StatusText, Note), Mode=OneWay}" HorizontalAlignment="Right"
+                                                           Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" MaxWidth="240" TextAlignment="Right" />
+                                                <HyperlinkButton Content="Details" Padding="4,0" HorizontalAlignment="Right" Click="Details_Click"
+                                                                 Visibility="{x:Bind vm:Bind.VisibleIfText(InfoUrl)}" />
                                             </StackPanel>
                                         </Grid>
                                     </DataTemplate>
@@ -258,7 +271,36 @@
                     <StackPanel Padding="32,24,32,24" Spacing="6" MaxWidth="820" HorizontalAlignment="Left">
                         <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,12" />
 
-                        <TextBlock Text="Safety" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,4" />
+                        <TextBlock Text="Update sources" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,4" />
+                        <Grid Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                              BorderThickness="1" CornerRadius="8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Windows Update" />
+                                <TextBlock Text="Microsoft's catalog of signed drivers for your hardware." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <ToggleSwitch HorizontalAlignment="Right" MinWidth="0" OnContent="" OffContent=""
+                                          IsOn="{x:Bind ViewModel.SourceWindowsUpdate, Mode=TwoWay}" />
+                        </Grid>
+                        <Grid Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                              BorderThickness="1" CornerRadius="8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="PC maker (Dell, HP, Lenovo)" />
+                                <TextBlock Text="Official catalogs from your PC's manufacturer — often newer than Windows Update." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,80,0" />
+                            </StackPanel>
+                            <ToggleSwitch HorizontalAlignment="Right" MinWidth="0" OnContent="" OffContent=""
+                                          IsOn="{x:Bind ViewModel.SourceManufacturer, Mode=TwoWay}" />
+                        </Grid>
+                        <Grid Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                              BorderThickness="1" CornerRadius="8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="NVIDIA graphics" />
+                                <TextBlock Text="Latest Game Ready driver straight from NVIDIA." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <ToggleSwitch HorizontalAlignment="Right" MinWidth="0" OnContent="" OffContent=""
+                                          IsOn="{x:Bind ViewModel.SourceNvidia, Mode=TwoWay}" />
+                        </Grid>
+
+                        <TextBlock Text="Safety" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
                         <Grid Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                               BorderThickness="1" CornerRadius="8" Padding="16">
                             <StackPanel>
@@ -269,7 +311,7 @@
                                           IsOn="{x:Bind ViewModel.CreateRestorePoint, Mode=TwoWay}" />
                         </Grid>
 
-                        <TextBlock Text="Update source" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
+                        <TextBlock Text="Work PCs" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
                         <Grid Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                               BorderThickness="1" CornerRadius="8" Padding="16">
                             <StackPanel>

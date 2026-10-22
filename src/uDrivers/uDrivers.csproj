@@ -35,7 +35,7 @@
     <Version>0.1.0</Version>
     <Product>uDrivers</Product>
     <Company>uDrivers</Company>
-    <Description>Keeps Windows drivers current using official Windows Update drivers.</Description>
+    <Description>Keeps Windows drivers current using official drivers from Windows Update, Dell, HP, Lenovo and NVIDIA.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -43,6 +43,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="System.Management" Version="10.0.0" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
+    <PackageReference Include="SharpCompress" Version="0.38.0" />
   </ItemGroup>
 
   <ItemGroup>

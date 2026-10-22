@@ -7,6 +7,9 @@ public sealed class AppSettings
     public bool CreateRestorePoint { get; set; } = true;
     public bool CheckAppUpdatesOnStart { get; set; } = true;
     public bool UseManagedServer { get; set; } = false;
+    public bool SourceWindowsUpdate { get; set; } = true;
+    public bool SourceManufacturer { get; set; } = true;
+    public bool SourceNvidia { get; set; } = true;
 }
 
 public static class SettingsService

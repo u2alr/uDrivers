@@ -1,10 +1,21 @@
 # uDrivers
 
-A fast, modern Windows driver updater that installs **official, signed drivers from Windows Update** — no third-party driver sites, no bundleware.
+A fast, modern Windows driver updater that installs **official, signed drivers only** — straight from Windows Update, your PC maker, and NVIDIA. No third-party driver sites, no bundleware.
 
 ## Features
 
-- **Finds driver updates** for your hardware from Microsoft's Windows Update catalog (the same drivers Windows lists under *Optional updates*).
+- **Pulls from every official source** at once:
+  | Source | What it covers |
+  | --- | --- |
+  | Windows Update | Microsoft's signed driver catalog (what Windows lists under *Optional updates*) |
+  | Dell | Dell Command \| Update catalog for your exact model (by system SKU) |
+  | HP | HP Image Assistant reference files for your platform |
+  | Lenovo | Lenovo System Update catalog for your machine type |
+  | NVIDIA | Latest WHQL Game Ready driver from NVIDIA |
+- **Only offers what's newer** — every vendor package is matched to your actual hardware IDs and compared with the installed driver version.
+- **Verifies before running** — published hashes are checked, and installers must carry a valid digital signature from the vendor.
+- **No duplicates** — if two sources offer a driver for the same device, the newest one is selected.
+- **BIOS and firmware** are listed so you know about them, but left to the PC maker's own tool, since flashing them carries more risk.
 - **Shows what changes** — installed driver vs. the new one, per device.
 - **Installs selected updates** with per-device progress and clear results.
 - **Restore point first** (on by default) so you can roll back with System Restore.
@@ -42,7 +53,10 @@ The **Release** workflow builds the app, packs it with [Velopack](https://velopa
 | Part | File |
 | --- | --- |
 | Installed driver inventory (WMI `Win32_PnPSignedDriver`) | `Services/DriverScanner.cs` |
-| Search / download / install via Windows Update Agent API | `Services/WindowsUpdateDriverService.cs` |
+| Windows Update (WUA COM API) | `Services/Sources/WindowsUpdateSource.cs` |
+| Dell / HP / Lenovo / NVIDIA catalogs | `Services/Sources/*Source.cs` |
+| Hardware ID matching and version comparison | `Services/Matching.cs` |
+| Hash + Authenticode signature checks | `Services/Web.cs`, `Services/SignatureVerifier.cs` |
 | System Restore point | `Services/RestorePointService.cs` |
 | Self-update from GitHub Releases | `Services/AppUpdateService.cs` |
 | UI | `MainWindow.xaml`, `ViewModels/MainViewModel.cs` |
@@ -51,7 +65,8 @@ Logs are written to `%LocalAppData%\uDrivers\logs`.
 
 ## Roadmap
 
-- Manufacturer catalogs (Intel, AMD, NVIDIA, Dell, HP, Lenovo) for drivers newer than Windows Update carries
+- AMD and Intel graphics drivers direct from the vendor
+- Installing BIOS/firmware with BitLocker handled automatically
 - Driver backup and one-click rollback per device
 - Scheduled background checks with notifications
 - ARM64 build
